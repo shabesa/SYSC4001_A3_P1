@@ -7,6 +7,8 @@
 
 #include<interrupts_student1_student2.hpp>
 
+const unsigned int TIME_QUANTUM = 100; // Time quantum for Round Robin Scheduling
+
 void FCFS(std::vector<PCB> &ready_queue) {
     std::sort( 
                 ready_queue.begin(),
@@ -28,6 +30,8 @@ std::tuple<std::string /* add std::string for bonus mark */ > run_simulation(std
 
     unsigned int current_time = 0;
     PCB running;
+
+    unsigned int time_elapsed_in_quantum = 0; //Track time used in current quantum
 
     //Initialize an empty running process
     idle_CPU(running);
@@ -64,10 +68,81 @@ std::tuple<std::string /* add std::string for bonus mark */ > run_simulation(std
         ///////////////////////MANAGE WAIT QUEUE/////////////////////////
         //This mainly involves keeping track of how long a process must remain in the ready queue
 
+        for (int i = 0; i < wait_queue.size(); i++)
+        {
+            wait_queue[i].io_time += 1;
+
+            if (wait_queue[i].io_time > wait_queue[i].io_duration) {
+                //move process to ready queue
+                wait_queue[i].state = READY;
+                wait_queue[i].io_time = 0;
+                execution_status += print_exec_status(current_time, wait_queue[i].PID, WAITING, READY);
+                ready_queue.push_back(wait_queue[i]);
+                sync_queue(job_list, wait_queue[i]);
+                wait_queue.erase(wait_queue.begin() + i);
+                i--; // Adjust index after erasing an element
+            } else {
+                sync_queue(job_list, wait_queue[i]);
+            }
+        }
+        
+
         /////////////////////////////////////////////////////////////////
 
         //////////////////////////SCHEDULER//////////////////////////////
-        FCFS(ready_queue); //example of FCFS is shown here
+        if(running.PID == -1 && !ready_queue.empty()) {
+            run_process(running, job_list, ready_queue, current_time);
+            execution_status += print_exec_status(current_time, running.PID, READY, RUNNING);
+            time_elapsed_in_quantum = 0;
+        }
+
+        if (running.PID != -1) {
+            running.remaining_time -= 1;
+            // running.last_io_exec += 1;
+            time_elapsed_in_quantum += 1;
+
+            unsigned int cpu_used = running.processing_time - running.remaining_time;
+            // Check if process has finished execution
+            if(running.remaining_time == 0) {
+                //Terminate the process
+                terminate_process(running, job_list);
+                execution_status += print_exec_status(current_time + 1, running.PID, RUNNING, TERMINATED);
+
+                idle_CPU(running); //Set CPU to idle
+                time_elapsed_in_quantum = 0;
+            }
+            //Check if process needs to perform I/O
+            else if(running.io_freq > 0 && cpu_used % running.io_freq == 0) {
+                //Move process to wait queue
+                running.state = WAITING;
+                execution_status += print_exec_status(current_time + 1, running.PID, RUNNING, WAITING);
+                
+                PCB temp = running; //Create a temp PCB to hold the running process
+                temp.io_time = 0; //Reset io_time counter
+                wait_queue.push_back(temp); //Add to wait queue
+                sync_queue(job_list, temp); //Sync the job list
+
+                idle_CPU(running); //Set CPU to idle
+                time_elapsed_in_quantum = 0;
+            }
+
+
+            // Check if time quantum has expired
+            else if (time_elapsed_in_quantum >= TIME_QUANTUM && !ready_queue.empty()) {
+                // Preempt the process and move it back to the ready queue
+                running.state = READY;
+                execution_status += print_exec_status(current_time, running.PID, RUNNING, READY);
+                
+                ready_queue.push_back(running); //Add back to ready queue
+                sync_queue(job_list, running); //Sync the job list
+
+                idle_CPU(running); //Set CPU to idle
+                time_elapsed_in_quantum = 0;
+            }
+        }
+        
+
+        current_time += 1; //Increment the current time
         /////////////////////////////////////////////////////////////////
 
     }

@@ -65,6 +65,9 @@ struct PCB{
     enum states     state;
     unsigned int    io_freq;
     unsigned int    io_duration;
+    unsigned int    priority;
+    unsigned int    io_time;
+    unsigned int    last_io_exec;
 };
 
 //------------------------------------HELPER FUNCTIONS FOR THE SIMULATOR------------------------------
@@ -270,6 +273,10 @@ PCB add_process(std::vector<std::string> tokens) {
     process.partition_number = -1;
     process.state = NOT_ASSIGNED;
 
+    process.priority = process.PID; // Default priority based on PID (lower PID = higher priority) (per assignment spec)
+    process.io_time = 0;
+    process.last_io_exec = 0;
+    
     return process;
 }
 
