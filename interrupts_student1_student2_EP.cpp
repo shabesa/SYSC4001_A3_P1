@@ -12,7 +12,7 @@ void EP(std::vector<PCB> &ready_queue) {
                 ready_queue.begin(),
                 ready_queue.end(),
                 []( const PCB &first, const PCB &second ){
-                    return (first.priority < second.priority); 
+                    return (first.priority < second.priority);
                 } 
             );
 }
