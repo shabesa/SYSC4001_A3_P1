@@ -90,6 +90,8 @@ std::tuple<std::string /* add std::string for bonus mark */ > run_simulation(std
         /////////////////////////////////////////////////////////////////
 
         //////////////////////////SCHEDULER//////////////////////////////
+        // Round Robin Scheduling
+        // If CPU is idle and there are processes in the ready queue, run the next process
         if(running.PID == -1 && !ready_queue.empty()) {
             run_process(running, job_list, ready_queue, current_time);
             execution_status += print_exec_status(current_time, running.PID, READY, RUNNING);
@@ -98,7 +100,6 @@ std::tuple<std::string /* add std::string for bonus mark */ > run_simulation(std
 
         if (running.PID != -1) {
             running.remaining_time -= 1;
-            // running.last_io_exec += 1;
             time_elapsed_in_quantum += 1;
 
             unsigned int cpu_used = running.processing_time - running.remaining_time;

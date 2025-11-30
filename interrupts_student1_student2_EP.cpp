@@ -7,12 +7,12 @@
 
 #include<interrupts_student1_student2.hpp>
 
-void FCFS(std::vector<PCB> &ready_queue) {
+void EP(std::vector<PCB> &ready_queue) {
     std::sort( 
                 ready_queue.begin(),
                 ready_queue.end(),
                 []( const PCB &first, const PCB &second ){
-                    return (first.arrival_time > second.arrival_time); 
+                    return (first.priority < second.priority); 
                 } 
             );
 }
@@ -64,10 +64,66 @@ std::tuple<std::string /* add std::string for bonus mark */ > run_simulation(std
         ///////////////////////MANAGE WAIT QUEUE/////////////////////////
         //This mainly involves keeping track of how long a process must remain in the ready queue
 
+        for (int i = 0; i < wait_queue.size(); i++)
+        {
+            wait_queue[i].io_time += 1; // Increment I/O time for each process in the wait queue
+
+            if (wait_queue[i].io_time > wait_queue[i].io_duration) {
+                // Move process to ready queue
+                wait_queue[i].state = READY; 
+                wait_queue[i].io_time = 0;
+                execution_status += print_exec_status(current_time, wait_queue[i].PID, WAITING, READY);
+                ready_queue.push_back(wait_queue[i]);
+                sync_queue(job_list, wait_queue[i]);
+                wait_queue.erase(wait_queue.begin() + i);
+                i--; // Adjust index after erasing an element
+            } else {
+                sync_queue(job_list, wait_queue[i]);
+            }
+        }
+
         /////////////////////////////////////////////////////////////////
 
         //////////////////////////SCHEDULER//////////////////////////////
-        FCFS(ready_queue); //example of FCFS is shown here
+        // External Priority Scheduling
+        // If CPU is idle and there are processes in the ready queue, run the next process
+        if(running.PID == -1 && !ready_queue.empty()) {
+            EP(ready_queue); // Sort by priority
+            run_process(running, job_list, ready_queue, current_time);
+            execution_status += print_exec_status(current_time, running.PID, READY, RUNNING);
+        }
+        
+        // If a process is running, decrement its remaining time
+        if (running.PID != -1) {
+            running.remaining_time -= 1;
+
+            unsigned int cpu_used = running.processing_time - running.remaining_time; // Calculate CPU time used
+
+            if (running.remaining_time == 0) {
+                // Terminate process
+                terminate_process(running, job_list);
+                execution_status += print_exec_status(current_time + 1, running.PID, RUNNING, TERMINATED);
+
+                idle_CPU(running); // Set CPU to idle
+            }
+
+            // Check for I/O interrupt
+            else if (running.io_freq > 0 && cpu_used % running.io_freq == 0) {
+                // Move process to wait queue
+                running.state = WAITING;
+                execution_status += print_exec_status(current_time + 1, running.PID, RUNNING, WAITING);
+                
+                PCB temp = running; // Create a temporary copy of the running process
+                temp.io_time = 0; // Reset I/O time for the wait queue
+                wait_queue.push_back(temp);
+                sync_queue(job_list, temp);
+
+                idle_CPU(running); // Set CPU to idle
+            }
+        }
+        
+
+        current_time += 1;
         /////////////////////////////////////////////////////////////////
 
     }
